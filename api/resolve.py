@@ -16,40 +16,58 @@ class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self._send(204)
 
-def do_GET(self):
-    query = parse_qs(urlparse(self.path).query)
-    target = query.get("url", [""])[0]
-    
-    # CLI-style flags as query params
-    format_opt = query.get("f", ["best"])[0]           # -f or --format
-    quality = query.get("q", [""])[0]                  # --quality preference
-    cookies_from_browser = query.get("cookies", [None])[0]  # --cookies-from-browser
-    referer = query.get("r", [None])[0]                # --referer
-    
-    if not target.startswith(("http://", "https://")):
-        return self._send(400, {"error": "use ?url=http(s)://..."})
-    
-    opts = {"quiet": True, "no_warnings": True, "noplaylist": True,
-            "skip_download": True, "cache_dir": False, "socket_timeout": 15,
-            "format": format_opt}  # ← Use dynamic format
-    
-    # Optional: add browser cookies if provided
-    if cookies_from_browser:
-        opts["cookiefrombrowser"] = cookies_from_browser
-    
-    # Optional: add referer if provided
-    if referer:
-        opts["http_headers"] = {"Referer": referer}
-    
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(target, download=False)
-        hdrs = info.get("http_headers") or {}
-        self._send(200, {"url": info.get("url"), "title": info.get("title"),
-                         "referer": hdrs.get("Referer") or info.get("webpage_url")})
-    except Exception as e:
-        self._send(502, {"error": str(e).splitlines()[-1][:300]})
+    def do_GET(self):
+        query = parse_qs(urlparse(self.path).query)
+        target = query.get("url", [""])[0]
         
-    # Suppress log messages (optional, makes console cleaner)
+        # CLI-like flags
+        fmt = query.get("f", ["best"])[0]
+        cookies_browser = query.get("cookies", [None])[0]
+        referer_hdr = query.get("r", [None])[0]
+        prefer_hls = query.get("hls", ["false"])[0].lower() == "true"
+        
+        if not target.startswith(("http://", "https://")):
+            return self._send(400, {"error": "use ?url=http(s)://..."})
+        
+        # Build opts
+        opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "skip_download": True,
+            "cache_dir": False,
+            "socket_timeout": 15,
+            "format": fmt,
+        }
+        
+        # Optional headers
+        if referer_hdr:
+            opts["http_headers"] = {"Referer": referer_hdr}
+        
+        # Optional browser cookies (requires browser-data package)
+        if cookies_browser:
+            opts["cookiefrombrowser"] = cookies_browser
+        
+        # HLS preference
+        if prefer_hls:
+            opts.setdefault("http_headers", {})["User-Agent"] = "Mozilla/5.0"
+            opts["format"] = "bestvideo+bestaudio/best"
+        
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(target, download=False)
+            hdrs = info.get("http_headers") or {}
+            
+            self._send(200, {
+                "url": info.get("url"), 
+                "title": info.get("title"),
+                "thumbnail": info.get("thumbnail"),
+                "duration": info.get("duration"),
+                "referer": hdrs.get("Referer") or info.get("webpage_url"),
+                "formats_available": len(info.get("formats", [])),
+            })
+        except Exception as e:
+            self._send(502, {"error": str(e).splitlines()[-1][:300]})
+    
     def log_message(self, format, *args):
-        pass
+        pass  # Silence logs
