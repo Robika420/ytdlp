@@ -1,1 +1,3 @@
-{"functions":{"api/resolve.py":{"maxDuration":30}}}
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json"
+}
