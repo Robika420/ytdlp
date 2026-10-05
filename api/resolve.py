@@ -24,7 +24,7 @@ class handler(BaseHTTPRequestHandler):
         # FIXED FORMAT SELECTOR - more compatible
         opts = {"quiet": True, "no_warnings": True, "noplaylist": True,
                 "skip_download": True, "cache_dir": False, "socket_timeout": 15,
-                "format": "bestvideo+bestaudio/best"}
+                "format": "best"}
         
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
