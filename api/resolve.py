@@ -19,14 +19,16 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         query = parse_qs(urlparse(self.path).query)
         target = query.get("url", [""])[0]
-        
-        # READ THE FORMAT PARAMETER FROM QUERY STRING
-        fmt = query.get("f", ["best"])[0]  # ← GET 'f' PARAM
+        fmt = query.get("f", [""])[0]  # ← Empty default
         
         if not target.startswith(("http://", "https://")):
             return self._send(400, {"error": "use ?url=http(s)://..."})
         
-        # USE DYNAMIC FORMAT
+        # FALLBACK FORMAT SELECTION
+        if not fmt or fmt == 'best':
+            # Try merged format first, fallback to adaptive
+            fmt = 'bestvideo+bestaudio/best'
+        
         opts = {
             "quiet": True,
             "no_warnings": True,
@@ -34,7 +36,8 @@ class handler(BaseHTTPRequestHandler):
             "skip_download": True,
             "cache_dir": False,
             "socket_timeout": 15,
-            "format": fmt,  # ← USE PARAMETER, NOT HARDCODED
+            "format": fmt,
+            "prefer_free_formats": False,
         }
         
         try:
@@ -50,7 +53,8 @@ class handler(BaseHTTPRequestHandler):
                 "referer": hdrs.get("Referer") or info.get("webpage_url"),
             })
         except Exception as e:
-            self._send(502, {"error": str(e).splitlines()[-1][:300]})
+            error_msg = str(e).splitlines()[-1][:300]
+            self._send(502, {"error": error_msg})
     
     def log_message(self, format, *args):
-        pass  # Silence logs
+        pass
