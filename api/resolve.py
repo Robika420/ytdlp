@@ -20,16 +20,13 @@ class handler(BaseHTTPRequestHandler):
         query = parse_qs(urlparse(self.path).query)
         target = query.get("url", [""])[0]
         
-        # CLI-like flags
-        fmt = query.get("f", ["best"])[0]
-        cookies_browser = query.get("cookies", [None])[0]
-        referer_hdr = query.get("r", [None])[0]
-        prefer_hls = query.get("hls", ["false"])[0].lower() == "true"
+        # READ THE FORMAT PARAMETER FROM QUERY STRING
+        fmt = query.get("f", ["best"])[0]  # ← GET 'f' PARAM
         
         if not target.startswith(("http://", "https://")):
             return self._send(400, {"error": "use ?url=http(s)://..."})
         
-        # Build opts
+        # USE DYNAMIC FORMAT
         opts = {
             "quiet": True,
             "no_warnings": True,
@@ -37,21 +34,8 @@ class handler(BaseHTTPRequestHandler):
             "skip_download": True,
             "cache_dir": False,
             "socket_timeout": 15,
-            "format": fmt,
+            "format": fmt,  # ← USE PARAMETER, NOT HARDCODED
         }
-        
-        # Optional headers
-        if referer_hdr:
-            opts["http_headers"] = {"Referer": referer_hdr}
-        
-        # Optional browser cookies (requires browser-data package)
-        if cookies_browser:
-            opts["cookiefrombrowser"] = cookies_browser
-        
-        # HLS preference
-        if prefer_hls:
-            opts.setdefault("http_headers", {})["User-Agent"] = "Mozilla/5.0"
-            opts["format"] = "bestvideo+bestaudio/best"
         
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -64,7 +48,6 @@ class handler(BaseHTTPRequestHandler):
                 "thumbnail": info.get("thumbnail"),
                 "duration": info.get("duration"),
                 "referer": hdrs.get("Referer") or info.get("webpage_url"),
-                "formats_available": len(info.get("formats", [])),
             })
         except Exception as e:
             self._send(502, {"error": str(e).splitlines()[-1][:300]})
