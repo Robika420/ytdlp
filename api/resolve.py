@@ -20,14 +20,27 @@ class handler(BaseHTTPRequestHandler):
         target = (parse_qs(urlparse(self.path).query).get("url") or [""])[0]
         if not target.startswith(("http://", "https://")):
             return self._send(400, {"error": "use ?url=http(s)://..."})
+        
+        # FIXED FORMAT SELECTOR - more compatible
         opts = {"quiet": True, "no_warnings": True, "noplaylist": True,
                 "skip_download": True, "cache_dir": False, "socket_timeout": 15,
-                "format": "b[ext=mp4]/b/best"}
+                "format": "bestvideo+bestaudio/best"}
+        
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(target, download=False)
             hdrs = info.get("http_headers") or {}
-            self._send(200, {"url": info.get("url"), "title": info.get("title"),
-                             "referer": hdrs.get("Referer") or info.get("webpage_url")})
+            
+            self._send(200, {
+                "url": info.get("url"), 
+                "title": info.get("title"),
+                "thumbnail": info.get("thumbnail"),
+                "duration": info.get("duration"),
+                "referer": hdrs.get("Referer") or info.get("webpage_url")
+            })
         except Exception as e:
             self._send(502, {"error": str(e).splitlines()[-1][:300]})
+    
+    # Suppress log messages (optional, makes console cleaner)
+    def log_message(self, format, *args):
+        pass
