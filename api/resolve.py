@@ -19,15 +19,14 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         query = parse_qs(urlparse(self.path).query)
         target = query.get("url", [""])[0]
-        fmt = query.get("f", [""])[0]  # ← Empty default
+        fmt = query.get("f", [""])[0]
         
         if not target.startswith(("http://", "https://")):
             return self._send(400, {"error": "use ?url=http(s)://..."})
         
-        # FALLBACK FORMAT SELECTION
+        # DEFAULT: Try merged format first (returns actual URL)
         if not fmt or fmt == 'best':
-            # Try merged format first, fallback to adaptive
-            fmt = 'bestvideo+bestaudio/best'
+            fmt = 'best'  # Single merged format
         
         opts = {
             "quiet": True,
@@ -38,15 +37,32 @@ class handler(BaseHTTPRequestHandler):
             "socket_timeout": 15,
             "format": fmt,
             "prefer_free_formats": False,
+            # Add this to handle age-restricted/private videos better
+            "extract_flat": False,
         }
         
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(target, download=False)
+            
+            # Get the actual URL from the response
+            url = info.get("url") or info.get("http_url")
+            
+            if not url:
+                # Try to find a playable URL in formats list
+                formats = info.get("formats", [])
+                for f in formats:
+                    if f.get("url"):
+                        url = f["url"]
+                        break
+            
+            if not url:
+                raise Exception("No playable URL found")
+                
             hdrs = info.get("http_headers") or {}
             
             self._send(200, {
-                "url": info.get("url"), 
+                "url": url, 
                 "title": info.get("title"),
                 "thumbnail": info.get("thumbnail"),
                 "duration": info.get("duration"),
